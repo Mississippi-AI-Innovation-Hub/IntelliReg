@@ -9,6 +9,8 @@ This Proof of Concept combines two systems:
 
 Mississippi remains the **primary reference state** for citation URLs and indexing conventions. Other states follow the same agency targets (dental, medical licensure, real estate).
 
+For pipeline order, CLI flags, parallel execution, per-state spiders, and debugging, see **[DETAIL.md](DETAIL.md)**.
+
 ## Data flow
 
 ```mermaid
@@ -16,7 +18,7 @@ flowchart LR
   subgraph crawl [Crawler pipeline]
     sources[sources.yaml]
     spiders[Scrapy spiders]
-    pipelines[Pipelines QA enrich]
+    pipelines[Pipelines]
     local[var/sos_crawler]
     sources --> spiders --> pipelines --> local
   end
@@ -39,25 +41,27 @@ flowchart LR
 ## RAG request path
 
 1. User selects **state scope** in the sidebar (checkbox grid; empty selection searches the full knowledge base without a metadata filter).
-2. `RAGEngine.query()` calls Bedrock **RetrieveAndGenerate** with:
-   - `numberOfResults: 20` (always set so Bedrock does not default to 5).
-   - Optional `state` metadata filter when one or more states are selected.
-3. The assistant message is rendered with citation expanders; Mississippi rules may link to `sos.ms.gov`, and S3-backed documents may use presigned URLs when configured.
+2. `RAGEngine.query()` calls Bedrock **RetrieveAndGenerate** with `numberOfResults: 20` always set, and an optional `state` metadata filter when states are selected.
+3. The assistant message is rendered with citation expanders.
+
+Details: [DETAIL.md — RAG assistant](DETAIL.md#rag-assistant).
 
 ## Crawler components
 
 | Piece | Role |
 |-------|------|
-| `orchestrator.py` | Runs spiders per state from `config_data/sources.yaml` |
-| `pipelines.py` | Agency scope, normalize, save documents, change tracking, manifest |
+| `orchestrator.py` | Runs spiders per state; optional parallel subprocess pool |
+| `pipelines.py` | Agency scope → normalize → save → change tracking → manifest |
 | `tools/qa.py` | Post-crawl field validation |
-| `tools/enrich.py` | Chunk manifests into knowledge-package JSONL for indexing |
-| `.github/workflows/crawl.yml` | Scheduled CI crawl (artifacts only; not committed to git) |
+| `tools/enrich.py` | Chunk manifests into knowledge-package JSONL |
+| `.github/workflows/crawl.yml` | Scheduled CI crawl (artifacts only) |
+
+Pipeline sequence and item fields: [DETAIL.md — Crawler data flow](DETAIL.md#crawler-data-flow-and-pipelines).
 
 ## Deployment context
 
-- **Streamlit UI**: local or Streamlit Cloud; requires AWS credentials and Bedrock KB access.
-- **Crawler**: local, distrobox with Playwright, or Docker image (`Dockerfile`).
-- **Lambda**: `lambda_handler.py` uses `/tmp` for crawler runtime when `AWS_LAMBDA_FUNCTION_NAME` is set.
+- **Streamlit UI**: local or Streamlit Cloud — see [setup.md](setup.md).
+- **Crawler**: local, Docker, or distrobox — see [DETAIL.md — Automation](DETAIL.md#automation-ci-docker-lambda).
+- **Lambda**: `/tmp/sos_crawler` runtime when `AWS_LAMBDA_FUNCTION_NAME` is set.
 
 This repository does **not** include production infrastructure-as-code for Bedrock or OpenSearch; operators supply their own sandbox accounts and indexing workflow.

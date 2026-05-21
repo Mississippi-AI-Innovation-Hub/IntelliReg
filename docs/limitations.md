@@ -1,5 +1,7 @@
 # Limitations
 
+For operational detail (CLI, parallelism, per-state crawler behavior), see **[DETAIL.md](DETAIL.md)**.
+
 This Proof of Concept was developed within a limited timeline and controlled environment. It may contain simplified workflows, mock integrations, limited testing coverage, and prototype user interfaces.
 
 ## Functional scope

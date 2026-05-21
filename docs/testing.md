@@ -2,29 +2,17 @@
 
 This repository does not include a full automated test suite. Validation is **manual** and focused on crawler output quality and RAG behavior in a sandbox.
 
+Detailed QA commands, manifest inspection, and log grep patterns: **[DETAIL.md — Validation and debugging](DETAIL.md#validation-and-debugging)**.
+
 ## Crawler validation
 
-After a crawl:
+After an orchestrated crawl:
 
 ```bash
 uv run sos-crawler qa
 ```
 
-Review manifests under `var/sos_crawler/output/`:
-
-- Citations, `extracted_text` length, `agency`, and `state` fields populated
-- Scrapy logs under `var/sos_crawler/logs/` for `item_scraped_count` and `DropItem` messages
-
-Example spot-check:
-
-```bash
-cat var/sos_crawler/output/manifest_arkansas_$(date +%Y%m%d).jsonl | python3 -c "
-import sys, json
-for line in sys.stdin:
-    r = json.loads(line)
-    print(r.get('citation'), r.get('size_bytes'))
-"
-```
+Review manifests under `var/sos_crawler/output/` for citations, `extracted_text`, `agency`, and `state`. Check `var/sos_crawler/logs/` for `item_scraped_count` and `DropItem` messages.
 
 ## RAG assistant validation
 
@@ -50,4 +38,4 @@ Record observed strengths (citation coverage, multi-state comparisons) and gaps 
 
 ## CI
 
-GitHub Actions (`.github/workflows/crawl.yml`) runs a scheduled crawl and uploads artifacts. It does not publish crawl data to the public repository.
+GitHub Actions (`.github/workflows/crawl.yml`) runs a scheduled crawl with `--run-qa --run-enrichment --max-retries 2` and uploads artifacts. It does not publish crawl data to the public repository. See [DETAIL.md — Automation](DETAIL.md#automation-ci-docker-lambda).

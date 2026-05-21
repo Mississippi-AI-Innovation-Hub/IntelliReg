@@ -16,9 +16,85 @@ Regulatory rules for dental boards, medical licensure boards, and real estate co
 - **Post-crawl tooling** — QA and enrichment CLI for manifests and knowledge-package JSONL.
 - **CI crawl workflow** — Scheduled GitHub Actions run (artifacts only; no regulatory corpora committed to git).
 
+## Prerequisites
+
+- **Python 3.12+**
+- **[uv](https://github.com/astral-sh/uv)** (recommended) or pip
+- **AWS account** with Bedrock Knowledge Base access — **required for the RAG app only**
+- **Playwright Chromium** — **required only if you run crawlers for MS, AL, or TX**
+
+## Quickstart
+
+Follow these steps to run the project locally without reading other files first.
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/spicyneutrino/AI-Innovation-Phase-1.git
+cd AI-Innovation-Phase-1
+uv sync
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set at minimum:
+
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (omit if using IAM roles) |
+| `AWS_DEFAULT_REGION` | e.g. `us-east-1` — must match your Bedrock KB |
+| `BEDROCK_KB_ID` | Your Knowledge Base ID |
+| `APP_PASSWORD` | Password for the Streamlit login screen |
+
+On **Streamlit Cloud**, put the same keys in `.streamlit/secrets.toml` (gitignored). Never commit `.env` or real production secrets.
+
+### 3. Run the RAG assistant
+
+```bash
+uv run streamlit run src/app.py
+```
+
+Open the URL in the terminal (default `http://localhost:8501`). Sign in with `APP_PASSWORD`, select state scope in the sidebar (or clear all to search the full knowledge base), then ask questions or use the suggested prompts.
+
+### 4. Optional — smoke-test the crawler
+
+HTTP-only Arkansas is a fast check that the crawler toolchain works:
+
+```bash
+uv run sos-crawler crawl --states AR --mode designated
+```
+
+For Playwright states (MS, AL, TX), install the browser first:
+
+```bash
+uv run playwright install chromium
+uv run sos-crawler crawl --states AL --mode designated --max-retries 0
+```
+
+Outputs appear under `var/sos_crawler/` (logs, downloads, manifests). This directory is gitignored.
+
+## Common tasks
+
+| Task | Command / link |
+|------|----------------|
+| Full quickstart (above) | Steps 1–4 in this README |
+| All CLI flags and command combinations | [docs/DETAIL.md](docs/DETAIL.md#cli-reference) |
+| Run all states in parallel (default 4 workers) | `uv run sos-crawler crawl` — see [parallel execution](docs/DETAIL.md#parallel-execution) |
+| Designated agencies only (dental, medical, real estate) | `uv run sos-crawler crawl --mode designated --states AL AR TX` |
+| Crawl + QA + enrichment (CI style) | `uv run sos-crawler crawl --run-qa --run-enrichment --max-retries 2` |
+| Sequential / low-memory crawl | `uv run sos-crawler crawl --max-workers 1` |
+| Debug one spider | `uv run python -m scrapy crawl arkansas` — see [DETAIL.md](docs/DETAIL.md#direct-scrapy-debug-single-spider) |
+| Post-process existing output | `uv run sos-crawler qa` then `uv run sos-crawler enrich` |
+| Docker crawler | [docs/setup.md](docs/setup.md#docker) and [DETAIL.md](docs/DETAIL.md#automation-ci-docker-lambda) |
+| Per-state spider notes | [docs/DETAIL.md](docs/DETAIL.md#per-state-spiders) |
+
 ## Architecture Overview
 
-See [docs/architecture.md](docs/architecture.md) for components, data flow, and a diagram of crawler → S3/KB → Streamlit.
+See [docs/architecture.md](docs/architecture.md) for a short component diagram. For end-to-end data flow, pipeline order, parallelism, and environment variables, see the **[detailed operations guide](docs/DETAIL.md)**.
 
 ## Repository Structure
 
@@ -27,7 +103,7 @@ See [docs/architecture.md](docs/architecture.md) for components, data flow, and 
 ├── LICENSE
 ├── .env.example
 ├── CHANGELOG.md
-├── docs/                 # Architecture, setup, data, limitations, testing
+├── docs/                 # Architecture, setup, DETAIL, data, limitations, testing
 ├── src/
 │   ├── app.py            # Streamlit RAG UI
 │   ├── rag_engine.py     # Bedrock RetrieveAndGenerate wrapper
@@ -39,37 +115,15 @@ See [docs/architecture.md](docs/architecture.md) for components, data flow, and 
 └── pyproject.toml        # uv / package metadata
 ```
 
-Generated crawl output lives under `var/sos_crawler/` (gitignored).
-
-## Setup
-
-**Quick start:**
-
-```bash
-git clone https://github.com/spicyneutrino/AI-Innovation-Phase-1.git
-cd AI-Innovation-Phase-1
-uv sync
-cp .env.example .env   # edit with your sandbox values
-uv run streamlit run src/app.py
-```
-
-Full prerequisites, crawler, Docker, and troubleshooting: [docs/setup.md](docs/setup.md).
+Generated crawl output lives under `var/sos_crawler/` (gitignored). See [docs/DETAIL.md — Runtime outputs](docs/DETAIL.md#runtime-outputs).
 
 ## Configuration
 
-Copy [.env.example](.env.example) to `.env` and set:
-
-- AWS credentials and region
-- `BEDROCK_KB_ID` (required for your sandbox Knowledge Base)
-- `APP_PASSWORD` (UI gate)
-
-On Streamlit Cloud, use the same keys in `.streamlit/secrets.toml` (not committed). Do not commit real secrets or production resource IDs you cannot rotate.
+Copy [.env.example](.env.example) to `.env` for local development. Crawler-only variables (`SOS_CRAWLER_RUNTIME_DIR`, `PLAYWRIGHT_HEADLESS`, etc.) are documented in [docs/DETAIL.md — Environment variables](docs/DETAIL.md#environment-variables).
 
 ## Data Notes
 
-**This repository does not include real data.** Any future samples would be placeholder or illustrative only.
-
-Indexing, S3 layout, and Bedrock sync are operator responsibilities. Details: [docs/data-notes.md](docs/data-notes.md).
+**This repository does not include real regulatory data.** Indexing, S3 layout, and Bedrock sync are operator responsibilities. Details: [docs/data-notes.md](docs/data-notes.md).
 
 ## Usage
 
@@ -78,16 +132,27 @@ Indexing, S3 layout, and Bedrock sync are operator responsibilities. Details: [d
 3. Use the **Scope** sidebar to select states (or clear all to search the full knowledge base without a state filter).
 4. Ask questions in the chat or use the suggested prompts on the welcome screen.
 
-**Optional — run the crawler:**
+**Crawler (optional):**
 
 ```bash
-uv run playwright install chromium
+uv run playwright install chromium   # if crawling MS, AL, or TX
 uv run sos-crawler crawl --states MS AL AR --mode designated --run-qa --run-enrichment
 ```
 
+## Documentation
+
+| Document | Contents |
+|----------|----------|
+| **[docs/DETAIL.md](docs/DETAIL.md)** | **Comprehensive guide:** diagrams, CLI flags, parallel runs, spiders, outputs, debugging |
+| [docs/setup.md](docs/setup.md) | Streamlit Cloud, AWS, Docker, distrobox, troubleshooting |
+| [docs/architecture.md](docs/architecture.md) | Short system architecture |
+| [docs/data-notes.md](docs/data-notes.md) | Data policy and indexing workflow |
+| [docs/limitations.md](docs/limitations.md) | PoC scope and production gaps |
+| [docs/testing.md](docs/testing.md) | Manual validation and sample queries |
+
 ## Testing and Evaluation
 
-Manual validation steps, sample evaluation queries, and CI notes: [docs/testing.md](docs/testing.md).
+Manual validation steps, sample evaluation queries, and CI notes: [docs/testing.md](docs/testing.md). Crawler QA commands and log inspection: [docs/DETAIL.md — Validation and debugging](docs/DETAIL.md#validation-and-debugging).
 
 ## Limitations
 

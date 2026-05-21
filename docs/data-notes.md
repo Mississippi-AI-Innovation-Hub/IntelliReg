@@ -1,5 +1,7 @@
 # Data notes
 
+For crawler outputs, S3 helpers, and indexing steps in depth, see **[DETAIL.md](DETAIL.md)** (runtime outputs, indexing and AWS).
+
 ## What is not in this repository
 
 This repository **does not include real regulatory data**, production databases, or live agency exports.

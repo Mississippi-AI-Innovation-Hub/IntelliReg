@@ -5,7 +5,9 @@
 - **Python 3.12+**
 - **[uv](https://github.com/astral-sh/uv)** (recommended) or pip
 - **AWS account** with access to Amazon Bedrock Knowledge Bases and (for uploads) S3
-- **Playwright Chromium** (crawler only): `uv run playwright install chromium`
+- **Playwright Chromium** (crawler only, MS/AL/TX): `uv run playwright install chromium`
+
+See [DETAIL.md — Prerequisites matrix](DETAIL.md#prerequisites-matrix) for what you need per task.
 
 ## Clone and install
 
@@ -42,6 +44,8 @@ pip install -r requirements.txt
 | `BEDROCK_MODEL_ARN` | No | Defaults to Amazon Nova Pro |
 | `APP_PASSWORD` | Yes | UI login gate |
 
+Crawler-only variables: [DETAIL.md — Environment variables](DETAIL.md#environment-variables).
+
 The application may fall back to a development Knowledge Base ID in code if `BEDROCK_KB_ID` is unset; **always set your own KB** for sandbox or demo use.
 
 ## Run the RAG assistant
@@ -52,16 +56,20 @@ uv run streamlit run src/app.py
 
 Open the URL shown in the terminal (default `http://localhost:8501`).
 
+For a full local quickstart (install, `.env`, app, optional crawler), see [README.md](../README.md#quickstart).
+
 ## Run the crawler (optional)
 
-### CLI
+Crawler operations (flags, parallel runs, recipes, outputs) are documented in **[DETAIL.md](DETAIL.md)**.
+
+### Quick example
 
 ```bash
 uv run playwright install chromium
 uv run sos-crawler crawl --states AL AR TX --mode designated --run-qa --run-enrichment
 ```
 
-Outputs default to `var/sos_crawler/` (logs, downloads, manifests). Override with `SOS_CRAWLER_RUNTIME_DIR` or `--runtime-dir`.
+Outputs default to `var/sos_crawler/`. Override with `SOS_CRAWLER_RUNTIME_DIR` or `--runtime-dir`.
 
 ### Distrobox (Playwright isolated)
 
@@ -90,12 +98,14 @@ docker compose build
 docker compose run --rm crawler uv run sos-crawler crawl --states AL --max-retries 0
 ```
 
+More combinations: [DETAIL.md — Automation](DETAIL.md#automation-ci-docker-lambda).
+
 ## AWS Lambda note
 
-When `AWS_LAMBDA_FUNCTION_NAME` is set, the crawler uses `/tmp/sos_crawler` unless `SOS_CRAWLER_RUNTIME_DIR` is overridden.
+When `AWS_LAMBDA_FUNCTION_NAME` is set, the crawler uses `/tmp/sos_crawler` unless `SOS_CRAWLER_RUNTIME_DIR` is overridden, and parallel workers are disabled.
 
 ## Troubleshooting
 
 - Confirm AWS region and credentials match your Bedrock KB.
-- If the crawler yields zero items, check `var/sos_crawler/logs/` and Scrapy stats for drop/scope messages.
-- Alabama and Texas spiders require Playwright; Arkansas and Georgia are HTTP-only.
+- Crawler issues: [DETAIL.md — Validation and debugging](DETAIL.md#validation-and-debugging) and [Known gotchas](DETAIL.md#known-gotchas).
+- Alabama and Texas require Playwright; Arkansas and Georgia are HTTP-only.
